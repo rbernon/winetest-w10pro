@@ -1,0 +1,29 @@
+#!/bin/bash
+
+set -Eeux
+
+WINETEST="$1"
+TESTLIST="$2"
+ARCH="$3"
+EVENT="${4:-push}"
+
+. /etc/os-release
+INFO="$INFO / QEMU running on $PRETTY_NAME / $(uname -a), "
+INFO="$INFO[CPU:$CPU_CORES*$(lscpu|grep "Model name:"|cut -d: -f2-|xargs echo)"
+INFO="$INFO RAM:$RAM_SIZE display:QEMU"
+INFO="$INFO]"
+
+wget "https://gitlab.winehq.org/wine/wine/-/jobs/artifacts/master/raw/$WINETEST?job=build-daily-winetest" -O /data/winetest.exe
+echo "start sudo winetest.exe -q -o \\\\host.lan\\data\\winetest.report -t rbernon-$ARCH -m \"Remi Bernon <rbernon@codeweavers.com>\" -i \"$INFO\" $TESTLIST" >/data/autorun.bat
+
+mkisofs -J -o /drivers.iso /data
+/usr/bin/tini -s -- /run/entry.sh
+rm -f /drivers.iso
+
+ls /data
+cat /data/autorun.bat
+
+case $EVENT in
+  push) echo curl 'https://test.winehq.org/submit' -X POST -F reportfile=@data/winetest.report -F submit="Upload File";;
+  *) curl 'https://test.winehq.org/submit' -X POST -F reportfile=@data/winetest.report -F submit="Upload File" ||:;;
+esac
